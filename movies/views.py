@@ -1,25 +1,15 @@
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseBadRequest, HttpResponseServerError
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from rest_framework import viewsets, status, pagination
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
 from .models import Movie
-from .serializers import MovieSerializer
+from .serializers import *
+from .services import MovieService
 
 
-# ---------- Функции из первой лабораторной ----------
 def index(request):
-    return HttpResponse("Страница приложения")
-
-
-def categories(request, catid):
-    return HttpResponse(f"<h1>Статьи по категориям</h1><p>{catid}</p>")
-
-
-def archive(request, year):
-    if int(year) > 2026:
-        return redirect('home', permanent=True)
-    return HttpResponse(f"<h1>Архив по годам</h1><p>{year}</p>")
+    movies = Movie.active_objects.all()
+    return render(request, "movies/index.html", {"movies": movies})
 
 
 # ---------- Обработчики ошибок ----------
@@ -39,9 +29,30 @@ def pageConflict(request, exception):
     return HttpResponse('<h1>Конфликт данных</h1>', status=409)
 
 
+# ---------- Валидация параметров пагинации ----------
+def validate_pagination_params(page, limit):
+    """Валидация query-параметров пагинации"""
+    errors = {}
+
+    try:
+        page = int(page) if page else 1
+        if page < 1:
+            errors['page'] = "Параметр page должен быть больше 0"
+    except ValueError:
+        errors['page'] = "Параметр page должен быть числом"
+
+    try:
+        limit = int(limit) if limit else 10
+        if limit < 1 or limit > 100:
+            errors['limit'] = "Параметр limit должен быть от 1 до 100"
+    except ValueError:
+        errors['limit'] = "Параметр limit должен быть числом"
+
+    return errors, page if 'page' not in errors else 1, limit if 'limit' not in errors else 10
+
+
 # ---------- API для второй лабораторной ----------
 class CustomPagination(pagination.PageNumberPagination):
-    """Кастомная пагинация в формате из задания"""
     page_size = 10
     page_size_query_param = 'limit'
     max_page_size = 100
@@ -61,60 +72,111 @@ class CustomPagination(pagination.PageNumberPagination):
 
 class MovieViewSet(viewsets.ViewSet):
     """
-    API для работы с фильмами
-    GET    /movies/          - список с пагинацией
-    GET    /movies/{id}/     - получить один фильм
-    POST   /movies/          - создать фильм
-    PUT    /movies/{id}/     - полное обновление
-    PATCH  /movies/{id}/     - частичное обновление
-    DELETE /movies/{id}/     - мягкое удаление
+    GET    /api/movies/          - список с пагинацией
+    GET    /api/movies/{id}/     - получить один фильм
+    POST   /api/movies/          - создать фильм
+    PUT    /api/movies/{id}/     - полное обновление
+    PATCH  /api/movies/{id}/     - частичное обновление
+    DELETE /api/movies/{id}/     - мягкое удаление
     """
     pagination_class = CustomPagination
 
     def list(self, request):
         """GET /movies/ - список всех активных фильмов с пагинацией"""
-        movies = Movie.active_objects.all()
+        # Валидация параметров пагинации
+        page = request.query_params.get('page', 1)
+        limit = request.query_params.get('limit', 10)
+
+        errors, page, limit = validate_pagination_params(page, limit)
+        if errors:
+            return Response(
+                {'errors': errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Используем сервис
+        movies = MovieService.get_active_movies()
 
         paginator = self.pagination_class()
+        paginator.page_size = limit
         page = paginator.paginate_queryset(movies, request)
-        serializer = MovieSerializer(page, many=True)
 
+        serializer = MovieOutputSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
     def retrieve(self, request, pk=None):
         """GET /movies/{id}/ - получить конкретный фильм"""
-        movie = get_object_or_404(Movie.active_objects.all(), pk=pk)
-        serializer = MovieSerializer(movie)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        try:
+            # Используем сервис
+            movie = MovieService.get_active_movie_by_id(pk)
+            serializer = MovieOutputSerializer(movie)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception:
+            return Response(
+                {'error': 'Фильм не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     def create(self, request):
         """POST /movies/ - создать новый фильм"""
-        serializer = MovieSerializer(data=request.data)
+        serializer = MovieCreateSerializer(data=request.data)
         if serializer.is_valid():
-            movie = serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Используем сервис
+            movie = MovieService.create_movie(serializer.validated_data)
+            output_serializer = MovieOutputSerializer(movie)
+            return Response(output_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, pk=None):
         """PUT /movies/{id}/ - полностью обновить фильм"""
-        movie = get_object_or_404(Movie.active_objects.all(), pk=pk)
-        serializer = MovieSerializer(movie, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Используем сервис
+            movie = MovieService.get_active_movie_by_id(pk)
+
+            serializer = MovieUpdateSerializer(data=request.data)
+            if serializer.is_valid():
+                # Используем сервис для обновления
+                updated_movie = MovieService.update_movie(movie, serializer.validated_data)
+                output_serializer = MovieOutputSerializer(updated_movie)
+                return Response(output_serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception:
+            return Response(
+                {'error': 'Фильм не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     def partial_update(self, request, pk=None):
         """PATCH /movies/{id}/ - частично обновить фильм"""
-        movie = get_object_or_404(Movie.active_objects.all(), pk=pk)
-        serializer = MovieSerializer(movie, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Используем сервис
+            movie = MovieService.get_active_movie_by_id(pk)
+
+            serializer = MoviePatchSerializer(data=request.data, partial=True)
+            if serializer.is_valid():
+                # Используем сервис для обновления
+                updated_movie = MovieService.update_movie(movie, serializer.validated_data)
+                output_serializer = MovieOutputSerializer(updated_movie)
+                return Response(output_serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception:
+            return Response(
+                {'error': 'Фильм не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     def destroy(self, request, pk=None):
         """DELETE /movies/{id}/ - мягкое удаление"""
-        movie = get_object_or_404(Movie.active_objects.all(), pk=pk)
-        movie.delete()  # soft delete
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            # Используем сервис
+            movie = MovieService.get_active_movie_by_id(pk)
+            MovieService.soft_delete_movie(movie)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Exception:
+            return Response(
+                {'error': 'Фильм не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )

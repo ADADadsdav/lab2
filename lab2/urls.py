@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from movies.views import pageNotFound, pageBadRequest, pageServerError, pageConflict
+from movies.views import pageNotFound, pageBadRequest, pageServerError
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,4 +26,3 @@ urlpatterns = [
 handler404 = pageNotFound
 handler400 = pageBadRequest
 handler500 = pageServerError
-handler409 = pageConflict

@@ -2,20 +2,75 @@ from rest_framework import serializers
 from .models import Movie
 
 
-class MovieSerializer(serializers.ModelSerializer):
-    """Универсальный сериализатор для всех операций"""
+class MovieOutputSerializer(serializers.ModelSerializer):
+    """Для ответов (GET)"""
 
     class Meta:
         model = Movie
         fields = ['id', 'title', 'director', 'year', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+
+class MovieCreateSerializer(serializers.ModelSerializer):
+    """Для создания (POST) с валидацией"""
+
+    class Meta:
+        model = Movie
+        fields = ['title', 'director', 'year']
+
     def validate_year(self, value):
-        """Валидация года выпуска"""
+        """Валидация года"""
         from datetime import datetime
         current_year = datetime.now().year
-        if value < 1888:  # первый фильм в истории
-            raise serializers.ValidationError("Год не может быть меньше 1888")
-        if value > current_year + 5:  # небольшая погрешность в будущее
+        if value < 1888:  # первый фильм
+            raise serializers.ValidationError("Год должен быть не меньше 1888")
+        if value > current_year + 5:
             raise serializers.ValidationError(f"Год не может быть больше {current_year + 5}")
+        return value
+
+    def validate_title(self, value):
+        """Валидация названия"""
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Название должно быть не короче 2 символов")
+        return value.strip()
+
+
+class MovieUpdateSerializer(serializers.ModelSerializer):
+    """Для полного обновления (PUT)"""
+
+    class Meta:
+        model = Movie
+        fields = ['title', 'director', 'year']
+        extra_kwargs = {
+            'title': {'required': True, 'allow_blank': False},
+            'director': {'required': True, 'allow_blank': False},
+            'year': {'required': True}
+        }
+
+    def validate_year(self, value):
+        from datetime import datetime
+        current_year = datetime.now().year
+        if value < 1888 or value > current_year + 5:
+            raise serializers.ValidationError(f"Год должен быть между 1888 и {current_year + 5}")
+        return value
+
+
+class MoviePatchSerializer(serializers.ModelSerializer):
+    """Для частичного обновления (PATCH)"""
+
+    class Meta:
+        model = Movie
+        fields = ['title', 'director', 'year']
+        extra_kwargs = {
+            'title': {'required': False, 'allow_blank': False},
+            'director': {'required': False, 'allow_blank': False},
+            'year': {'required': False}
+        }
+
+    def validate_year(self, value):
+        if value is not None:
+            from datetime import datetime
+            current_year = datetime.now().year
+            if value < 1888 or value > current_year + 5:
+                raise serializers.ValidationError(f"Год должен быть между 1888 и {current_year + 5}")
         return value
