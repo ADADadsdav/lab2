@@ -41,6 +41,7 @@
             <td>{{ movie.created_at }}</td>
             <td>{% if movie.deleted_at %}Удален{% else %}Активен{% endif %}</td>
         </tr>
+        {% endfor %}
     </table>
 </body>
 </html>
