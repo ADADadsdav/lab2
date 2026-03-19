@@ -83,7 +83,7 @@ class MovieViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """GET /movies/ - список всех активных фильмов с пагинацией"""
-        # Валидация параметров пагинации
+
         page = request.query_params.get('page', 1)
         limit = request.query_params.get('limit', 10)
 
@@ -94,7 +94,7 @@ class MovieViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Используем сервис
+
         movies = MovieService.get_active_movies()
 
         paginator = self.pagination_class()
@@ -107,7 +107,7 @@ class MovieViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         """GET /movies/{id}/ - получить конкретный фильм"""
         try:
-            # Используем сервис
+
             movie = MovieService.get_active_movie_by_id(pk)
             serializer = MovieOutputSerializer(movie)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -121,7 +121,7 @@ class MovieViewSet(viewsets.ViewSet):
         """POST /movies/ - создать новый фильм"""
         serializer = MovieCreateSerializer(data=request.data)
         if serializer.is_valid():
-            # Используем сервис
+
             movie = MovieService.create_movie(serializer.validated_data)
             output_serializer = MovieOutputSerializer(movie)
             return Response(output_serializer.data, status=status.HTTP_201_CREATED)
@@ -130,12 +130,11 @@ class MovieViewSet(viewsets.ViewSet):
     def update(self, request, pk=None):
         """PUT /movies/{id}/ - полностью обновить фильм"""
         try:
-            # Используем сервис
             movie = MovieService.get_active_movie_by_id(pk)
 
             serializer = MovieUpdateSerializer(data=request.data)
             if serializer.is_valid():
-                # Используем сервис для обновления
+
                 updated_movie = MovieService.update_movie(movie, serializer.validated_data)
                 output_serializer = MovieOutputSerializer(updated_movie)
                 return Response(output_serializer.data, status=status.HTTP_200_OK)
@@ -150,12 +149,12 @@ class MovieViewSet(viewsets.ViewSet):
     def partial_update(self, request, pk=None):
         """PATCH /movies/{id}/ - частично обновить фильм"""
         try:
-            # Используем сервис
+
             movie = MovieService.get_active_movie_by_id(pk)
 
             serializer = MoviePatchSerializer(data=request.data, partial=True)
             if serializer.is_valid():
-                # Используем сервис для обновления
+
                 updated_movie = MovieService.update_movie(movie, serializer.validated_data)
                 output_serializer = MovieOutputSerializer(updated_movie)
                 return Response(output_serializer.data, status=status.HTTP_200_OK)
@@ -170,7 +169,7 @@ class MovieViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         """DELETE /movies/{id}/ - мягкое удаление"""
         try:
-            # Используем сервис
+
             movie = MovieService.get_active_movie_by_id(pk)
             MovieService.soft_delete_movie(movie)
             return Response(status=status.HTTP_204_NO_CONTENT)
