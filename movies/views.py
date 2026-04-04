@@ -1,6 +1,7 @@
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseBadRequest, HttpResponseServerError
 from django.shortcuts import render
 from rest_framework import viewsets, status, pagination
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Movie
 from .serializers import *
@@ -79,6 +80,7 @@ class MovieViewSet(viewsets.ViewSet):
     PATCH  /api/movies/{id}/     - частичное обновление
     DELETE /api/movies/{id}/     - мягкое удаление
     """
+    permission_classes = [IsAuthenticated]
     pagination_class = CustomPagination
 
     def list(self, request):

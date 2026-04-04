@@ -73,9 +73,9 @@ docker-compose exec app python manage.py shell -c "from movies.models import Mov
 
 ```json
 {
-  "title": "Бойцовский клуб",
-  "director": "Дэвид Финчер",
-  "year": 1999
+  "title": "Унесённые призраками",
+  "director": "Хаяо Миядзаки",
+  "year": 2001
 }
 ```
 

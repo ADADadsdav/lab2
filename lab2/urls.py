@@ -21,8 +21,7 @@ from movies.views import pageNotFound, pageBadRequest, pageServerError
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('movies.urls')),
+    path('auth/', include('custom_auth.urls')),
 ]
 
-handler404 = pageNotFound
-handler400 = pageBadRequest
-handler500 = pageServerError
+
