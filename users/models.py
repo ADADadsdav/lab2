@@ -14,6 +14,9 @@ class UserManager(models.Manager):
 
 class User(models.Model):
     """Модель пользователя"""
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']  # Поля, которые запрашиваются при createsuperuser
+
     email = models.EmailField(unique=True, null=True, blank=True)
     phone = models.CharField(max_length=20, unique=True, null=True, blank=True)
     username = models.CharField(max_length=150, unique=True)
@@ -33,6 +36,18 @@ class User(models.Model):
     # Менеджеры
     objects = models.Manager()
     active_objects = UserManager()
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return self.deleted_at is None
 
     class Meta:
         db_table = 'users'
@@ -67,6 +82,7 @@ class User(models.Model):
 
     def __str__(self):
         return f"{self.username} ({self.email or self.phone})"
+
 
 
 class UserToken(models.Model):
