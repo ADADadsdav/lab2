@@ -24,7 +24,6 @@ class User(models.Model):
 
     # OAuth поля
     yandex_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
-    vk_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
     # Временные метки
     created_at = models.DateTimeField(auto_now_add=True)
@@ -95,3 +94,11 @@ class UserToken(models.Model):
         """Хеширование токена для хранения в БД"""
         import hashlib
         return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

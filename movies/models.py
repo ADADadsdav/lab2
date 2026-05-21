@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 
 
 class SoftDeleteManager(models.Manager):
@@ -24,6 +25,13 @@ class Movie(models.Model):
     # Менеджеры
     objects = models.Manager()
     active_objects = SoftDeleteManager()
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='movies',
+        null=True  # временно для существующих фильмов
+    )
 
     def delete(self):
         """Soft Delete - просто помечаем как удаленный"""

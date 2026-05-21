@@ -6,32 +6,29 @@ from django.http import JsonResponse
 from django.conf import settings
 from .auth_service import AuthService
 from .oauth_service import OAuthService
-from .serializers import RegisterSerializer, LoginSerializer, UserResponseSerializer
+from .serializers import RegisterSerializer, LoginSerializer, UserResponseSerializer, ForgotPasswordSerializer, \
+    ResetPasswordSerializer
 
 
 class RegisterView(APIView):
-    """Регистрация пользователя"""
     permission_classes = []
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
-
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = AuthService.register_user(
-                email=serializer.validated_data['email'],
+                email=serializer.validated_data.get('email'),
+                phone=serializer.validated_data.get('phone'),
                 username=serializer.validated_data['username'],
                 password=serializer.validated_data['password']
             )
-
             response_data = UserResponseSerializer(user).data
             return Response(response_data, status=status.HTTP_201_CREATED)
-
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 
 class LoginView(APIView):
     """Вход пользователя"""
@@ -226,3 +223,37 @@ class OAuthYandexCallbackView(APIView):
 
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        AuthService.request_password_reset(email)
+
+        # Всегда возвращаем успех (даже если email нет в БД)
+        return Response({'message': 'Если email существует, на него отправлена инструкция'},
+                        status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            AuthService.reset_password(
+                token=serializer.validated_data['token'],
+                new_password=serializer.validated_data['new_password']
+            )
+            return Response({'message': 'Пароль успешно сброшен'}, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

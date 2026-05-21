@@ -1,9 +1,10 @@
 from django.utils import timezone
 from datetime import datetime, timedelta
 from django.conf import settings
-from users.models import User, UserToken
+from users.models import User, UserToken, PasswordResetToken
 from .jwt_service import JWTService
 from django.db import models
+import secrets
 
 
 class AuthService:
@@ -31,31 +32,27 @@ class AuthService:
         }
 
     @staticmethod
-    def register_user(email: str, username: str, password: str) -> User:
-        """Регистрация нового пользователя"""
-        # Проверяем уникальность
-        if User.objects.filter(email=email).exists():
+    def register_user(email: str, phone: str, username: str, password: str) -> User:
+        if email and User.objects.filter(email=email).exists():
             raise ValueError('Email уже зарегистрирован')
-
+        if phone and User.objects.filter(phone=phone).exists():
+            raise ValueError('Телефон уже зарегистрирован')
         if User.objects.filter(username=username).exists():
             raise ValueError('Username уже занят')
 
-        # Создаем пользователя
         user = User.objects.create(
             email=email,
+            phone=phone,
             username=username
         )
         user.set_password(password)
         user.save()
-
         return user
 
     @staticmethod
     def login_user(identifier: str, password: str) -> dict:
-        """Вход пользователя по email или username"""
-        # Ищем пользователя по email или username
         user = User.objects.filter(
-            models.Q(email=identifier) | models.Q(username=identifier),
+            models.Q(email=identifier) | models.Q(username=identifier) | models.Q(phone=identifier),
             deleted_at__isnull=True
         ).first()
 
@@ -111,3 +108,60 @@ class AuthService:
     def logout_all_sessions(user: User):
         """Завершение всех сессий пользователя"""
         JWTService.revoke_all_user_tokens(user)
+
+    @staticmethod
+    def request_password_reset(email: str):
+        user = User.active_objects.filter(email=email).first()
+        if not user:
+            # Не говорим, что пользователь не найден (безопасность)
+            return
+
+        reset_token = secrets.token_urlsafe(32)
+
+        return reset_token  #
+
+    @staticmethod
+    def reset_password(token: str, new_password: str):
+        pass
+
+    @staticmethod
+    def request_password_reset(email: str):
+        user = User.active_objects.filter(email=email).first()
+        if not user:
+            return  # Не раскрываем информацию
+
+        # Удаляем старые токены
+        PasswordResetToken.objects.filter(user=user, used=False).delete()
+
+        # Создаем новый токен
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(hours=1)
+        PasswordResetToken.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at
+        )
+        # В реальности: отправить email с токеном. Здесь возвращаем для тестов
+        return token
+
+    @staticmethod
+    def reset_password(token: str, new_password: str):
+        reset_token = PasswordResetToken.objects.filter(
+            token=token,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).first()
+
+        if not reset_token:
+            raise ValueError('Токен сброса недействителен или истек')
+
+        user = reset_token.user
+        user.set_password(new_password)
+        user.save()
+
+        # Отзываем все сессии
+        AuthService.logout_all_sessions(user)
+
+        # Помечаем токен как использованный
+        reset_token.used = True
+        reset_token.save()

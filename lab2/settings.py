@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'custom_auth.apps.CustomAuthConfig',
     'rest_framework',
 ]
+AUTH_USER_MODEL = 'users.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -38,6 +39,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'custom_auth.middleware.AuthenticationMiddleware',
+
 ]
 
 ROOT_URLCONF = 'lab2.urls'
@@ -99,6 +101,7 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'EXCEPTION_HANDLER': 'custom_auth.exceptions.custom_exception_handler',
 }
 JWT_ACCESS_SECRET = os.getenv('JWT_ACCESS_SECRET')
 JWT_REFRESH_SECRET = os.getenv('JWT_REFRESH_SECRET')

@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from .models import Movie
 from .serializers import *
 from .services import MovieService
+from custom_auth.permissions import IsOwner
 
 
 def index(request):
@@ -80,7 +81,7 @@ class MovieViewSet(viewsets.ViewSet):
     PATCH  /api/movies/{id}/     - частичное обновление
     DELETE /api/movies/{id}/     - мягкое удаление
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwner]
     pagination_class = CustomPagination
 
     def list(self, request):
@@ -96,8 +97,8 @@ class MovieViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-
-        movies = MovieService.get_active_movies()
+        # Показываем только фильмы текущего пользователя
+        movies = MovieService.get_active_movies().filter(user=request.user)
 
         paginator = self.pagination_class()
         paginator.page_size = limit
@@ -109,8 +110,9 @@ class MovieViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         """GET /movies/{id}/ - получить конкретный фильм"""
         try:
-
             movie = MovieService.get_active_movie_by_id(pk)
+            # Проверяем, что фильм принадлежит текущему пользователю
+            self.check_object_permissions(request, movie)
             serializer = MovieOutputSerializer(movie)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception:
@@ -123,8 +125,10 @@ class MovieViewSet(viewsets.ViewSet):
         """POST /movies/ - создать новый фильм"""
         serializer = MovieCreateSerializer(data=request.data)
         if serializer.is_valid():
-
-            movie = MovieService.create_movie(serializer.validated_data)
+            # Добавляем текущего пользователя в данные для создания
+            movie_data = serializer.validated_data
+            movie_data['user'] = request.user
+            movie = MovieService.create_movie(movie_data)
             output_serializer = MovieOutputSerializer(movie)
             return Response(output_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -133,10 +137,11 @@ class MovieViewSet(viewsets.ViewSet):
         """PUT /movies/{id}/ - полностью обновить фильм"""
         try:
             movie = MovieService.get_active_movie_by_id(pk)
+            # Проверяем, что фильм принадлежит текущему пользователю
+            self.check_object_permissions(request, movie)
 
             serializer = MovieUpdateSerializer(data=request.data)
             if serializer.is_valid():
-
                 updated_movie = MovieService.update_movie(movie, serializer.validated_data)
                 output_serializer = MovieOutputSerializer(updated_movie)
                 return Response(output_serializer.data, status=status.HTTP_200_OK)
@@ -151,12 +156,12 @@ class MovieViewSet(viewsets.ViewSet):
     def partial_update(self, request, pk=None):
         """PATCH /movies/{id}/ - частично обновить фильм"""
         try:
-
             movie = MovieService.get_active_movie_by_id(pk)
+            # Проверяем, что фильм принадлежит текущему пользователю
+            self.check_object_permissions(request, movie)
 
             serializer = MoviePatchSerializer(data=request.data, partial=True)
             if serializer.is_valid():
-
                 updated_movie = MovieService.update_movie(movie, serializer.validated_data)
                 output_serializer = MovieOutputSerializer(updated_movie)
                 return Response(output_serializer.data, status=status.HTTP_200_OK)
@@ -171,8 +176,9 @@ class MovieViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         """DELETE /movies/{id}/ - мягкое удаление"""
         try:
-
             movie = MovieService.get_active_movie_by_id(pk)
+            # Проверяем, что фильм принадлежит текущему пользователю
+            self.check_object_permissions(request, movie)
             MovieService.soft_delete_movie(movie)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
